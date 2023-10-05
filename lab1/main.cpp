@@ -110,40 +110,24 @@ string process_free_odds(map<string, vector<string>> multipliers_for_elems_left,
     return res;
 }
 
-std::string declare_all_variables_by_smt2(map<string, vector<string>> multipliers_for_elems_left, map<string, vector<string>> multipliers_for_elems_right){
-    string res;
-    map<string , bool>declared_variables;
-    for (int i = 0; i < multipliers_for_elems_left["x"].size(); i++){
-        if (declared_variables[multipliers_for_elems_left["x"][i]] != true){
-            declared_variables[multipliers_for_elems_left["x"][i]] = true;
-        }
-    }
-    for (int i = 0; i < multipliers_for_elems_right["x"].size(); i++){
-        if (declared_variables[multipliers_for_elems_right["x"][i]] != true){
-            declared_variables[multipliers_for_elems_right["x"][i]] = true;
-        }
-    }
-    for (auto it = multipliers_for_elems_left.begin(); it != multipliers_for_elems_left.end(); ++it){
-        if (it -> first != "x" && declared_variables[it -> first] != true){
-            declared_variables[it -> first] = true;
-        }
-    }
-    for (auto it = multipliers_for_elems_right.begin(); it != multipliers_for_elems_right.end(); ++it){
-        if (it -> first != "x" && declared_variables[it -> first] != true){
-            declared_variables[it -> first] = true;
-        }
-    }
-    for (auto it = declared_variables.begin(); it != declared_variables.end(); ++it){
-        if ((it->first)[1] == '0'){
-            for (int i = 0; i < 2; i++){
+std::string declare_all_variables_by_smt2(map<string, vector<string>> multipliers_for_elems, map<string , bool>&declared_variables){
+    string res = "";
+    for (int i = 0; i < multipliers_for_elems["x"].size(); i++){
+        if (declared_variables[multipliers_for_elems["x"][i]] != true){
+            for (int p = 0; p < 2; p++){
                 for (int j = 0; j < 2; j++){
-                    res += "(declare-fun " + it->first + to_string(i) + to_string(j) + " () Int)\n";
+                    res += "(declare-fun " + multipliers_for_elems["x"][i] + to_string(p) + to_string(j) + " () Int)\n";
                 }
             }
-        }else{
+            declared_variables[multipliers_for_elems["x"][i]] = true;
+        }
+    }
+    for (auto it = multipliers_for_elems.begin(); it != multipliers_for_elems.end(); ++it){
+        if (it -> first != "x" && declared_variables[it -> first] != true){
             for (int i = 0; i < 2; i++){
                 res += "(declare-fun " + it->first + to_string(i) + " () Int)\n";
             }
+            declared_variables[it -> first] = true;
         }
     }
     return res;
@@ -188,15 +172,10 @@ std::string additionals_asserts(map<string, vector<string>> multipliers_for_elem
 }
 
 std::string form_smt2_instructions(map<string, vector<string>> multipliers_for_elems_left,map<string, vector<string>> multipliers_for_elems_right){
-    std::string res = "(set-logic QF_NIA)\n";
-    res += "(define-fun arctic_max ((a Int) (b Int)) Int (ite (>= a b)a b))\n";
-    res += "(define-fun arctic_sum ((a Int) (b Int)) Int (ite (and (> a -1)  (> b -1)) (+ a b) (ite (<= a -1) b a )))\n";
-    res += "(define-fun arctic_comp ((a Int) (b Int)) Bool (ite (or (> a b) (and (<= a -1) (<= b -1))) true false))\n";
-    res += declare_all_variables_by_smt2(multipliers_for_elems_left, multipliers_for_elems_right);
+    std::string res = "";
     res += additionals_asserts(multipliers_for_elems_left, multipliers_for_elems_right);
     res += process_variables_x(multipliers_for_elems_left["x"], multipliers_for_elems_right["x"]);
     res += process_free_odds(multipliers_for_elems_left, multipliers_for_elems_right);
-    res += "(check-sat)\n(get-model)\n";
     return res;
 }
 
@@ -260,20 +239,27 @@ string delete_spaces(string str){
 
 int main() {
     cout << "пример ввода f(g(x)) -> f(x)" << endl;
+    cout << "пустая строка - конец ввода" << endl;
+    ofstream out("lab1.smt2", ios_base::trunc);
+    out << "(set-logic QF_NIA)\n";
+    out <<  "(define-fun arctic_max ((a Int) (b Int)) Int (ite (>= a b)a b))\n";
+    out <<  "(define-fun arctic_sum ((a Int) (b Int)) Int (ite (and (> a -1)  (> b -1)) (+ a b) (ite (<= a -1) b a )))\n";
+    out <<  "(define-fun arctic_comp ((a Int) (b Int)) Bool (ite (or (> a b) (and (<= a -1) (<= b -1))) true false))\n";
     string input_str, left_expr, right_expr;
     getline(cin, input_str);
-    input_str = delete_spaces(input_str);
-    left_expr = input_str.substr(0, input_str.find("->"));
-    right_expr = input_str.substr(input_str.find("->") + 2);
-    
-    cout << left_expr << " " << right_expr << "\n";
-    map<string, vector<string>> multipliers_for_elems_left = define_multipliers_for_elems(make_parse_tree(left_expr));
-    map<string, vector<string>> multipliers_for_elems_right = define_multipliers_for_elems(make_parse_tree(right_expr));
-    ofstream out("lab1.smt2", ios_base::trunc);
-    out << form_smt2_instructions(multipliers_for_elems_left, multipliers_for_elems_right);
+    map<string, bool>declared_variables;
+    while (input_str.length() != 0){
+        input_str = delete_spaces(input_str);
+        left_expr = input_str.substr(0, input_str.find("->"));
+        right_expr = input_str.substr(input_str.find("->") + 2);
+        map<string, vector<string>> multipliers_for_elems_left = define_multipliers_for_elems(make_parse_tree(left_expr));
+        map<string, vector<string>> multipliers_for_elems_right = define_multipliers_for_elems(make_parse_tree(right_expr));
+        out << declare_all_variables_by_smt2(multipliers_for_elems_left, declared_variables);
+        out << declare_all_variables_by_smt2(multipliers_for_elems_right, declared_variables);
+        out << form_smt2_instructions(multipliers_for_elems_left, multipliers_for_elems_right);
+        getline(cin, input_str);
+    }
+    out << "(check-sat)\n(get-model)\n";
     out.close();
     return 0;
 }
-
-
-
