@@ -234,7 +234,43 @@ vector<unordered_map<char, string>> create_control_table (vector<string>& gramma
         return control_table;
 }
 
-bool check_state_on_conflicts(unordered_map<char, string>& state, char cur_token){
+void print_control_table(
+    vector<unordered_map<char, string>>& control_table, vector<char>& terms, vector<char>& nonterms){
+    cout << "   ";
+    for (auto elem : nonterms){
+        cout << elem << "  ";
+    }
+    for (auto elem : terms){
+        cout << elem << "  ";
+    }
+    cout << endl;
+    for (int i = 0 ; i < control_table.size(); i++){
+        cout << i << "  ";
+        for (auto elem : nonterms){
+            if (control_table[i][elem].length() != 0){
+                cout << control_table[i][elem] << "  ";
+            }else{
+                cout << "-  ";
+            }
+        }
+        for (auto elem : terms){
+            if (control_table[i][elem].length() != 0){
+                cout << control_table[i][elem] << " ";
+            }else{
+                cout << "-  ";
+            }
+        }
+        cout << endl;
+    }
+}
+
+struct Conflict_States{
+    const string no_conflicts {"no_conflicts"};
+    const string shift_reduce {"shift_reduce"};
+    const string reduce_reduce {"reduce_reduce"};
+};
+
+string check_state_on_conflicts(unordered_map<char, string>& state, char cur_token){
     string actions = state[cur_token];
     int num_reduces = 0;
     int num_shifts = 0;
@@ -246,81 +282,14 @@ bool check_state_on_conflicts(unordered_map<char, string>& state, char cur_token
             num_reduces++;
         }
     }
-    bool flag = true;
+    Conflict_States conflict_states;
     if (num_shifts != 0 && num_reduces != 0){
-        cout << " есть конфликт сдвиг свертка " << endl;
-        flag = false;
+        return conflict_states.shift_reduce;
     }
     if (num_reduces > 1){
-        cout << " есть конфликт свертка свертка " << endl;
-        flag = false;
+        return conflict_states.reduce_reduce;
     }
-    if (!flag){
-        return false;
-    }
-    return true;
-}
-
-bool check_control_table_on_conflicts(
-    vector<unordered_map<char, string>>& control_table, vector<char>& terms){
-    for (int i = 0; i < control_table.size(); i++){
-        for (auto elem : terms){
-            string actions = control_table[i][elem];
-            int num_reduces = 0;
-            int num_shifts = 0;
-            for (int i = 0; i < actions.length(); i+=2){
-                if (actions[i] == 's'){
-                    num_shifts++;
-                }
-                if (actions[i] == 'r'){
-                    num_reduces++;
-                }
-            }
-            bool flag = true;
-            if (num_shifts != 0 && num_reduces != 0){
-                cout << " есть конфликт сдвиг свертка ";
-                flag = false;
-            }
-            if (num_reduces > 1){
-                cout << " есть конфликт свертка свертка ";
-                flag = false;
-            }
-            if (!flag){
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-void print_control_table(
-    vector<unordered_map<char, string>>& control_table, vector<char>& terms, vector<char>& nonterms){
-        cout << "   ";
-        for (auto elem : nonterms){
-            cout << elem << "  ";
-        }
-        for (auto elem : terms){
-            cout << elem << "  ";
-        }
-        cout << endl;
-        for (int i = 0 ; i < control_table.size(); i++){
-            cout << i << "  ";
-            for (auto elem : nonterms){
-                if (control_table[i][elem].length() != 0){
-                    cout << control_table[i][elem] << "  ";
-                }else{
-                    cout << "-  ";
-                }
-            }
-            for (auto elem : terms){
-                if (control_table[i][elem].length() != 0){
-                    cout << control_table[i][elem] << " ";
-                }else{
-                    cout << "-  ";
-                }
-            }
-            cout << endl;
-        }
+    return conflict_states.no_conflicts;
 }
 
 bool is_word_correct(string action, char cur_token){
@@ -330,51 +299,177 @@ bool is_word_correct(string action, char cur_token){
     return false;
 }
 
-bool lr0_parsing (vector<string>& grammar, vector<unordered_map<char, string>>& control_table,
- stack<char> word_stack, vector<char>& terms){
-    stack<string> parse_stack;
-    parse_stack.push(to_string(0));
-    int position = 0;
-    while (true){
-        string top_elem = parse_stack.top();
-        char cur_token = word_stack.top();
-        int cur_state = top_elem[top_elem.length() - 1] - '0';
-        if (!check_state_on_conflicts(control_table[cur_state], cur_token)){
-            cout << " в позиции слова " << position << endl;
-            cout << " это первая ошибка в разборе " << endl;
-            return false;
+struct Node{
+    Node* parent;
+    string val;
+    Node():parent(nullptr), val(""){}
+    Node(string _val):parent(nullptr), val(_val){}
+    Node(Node* parent, string _val):parent(parent), val(_val){}
+};
+
+void draw_branch(Node* top){
+    if (top != nullptr){
+        cout << top -> val << " -> ";
+        draw_branch(top -> parent);
+    }
+    cout << endl;
+}
+
+void print_completion_message(bool is_word_correct, Node* top){
+    if (is_word_correct){
+        cout << " разбор прошел удачно ! " << endl;
+        draw_branch(top);
+    }else{
+        cout << " ветка потерпела неудачу ! " << endl;
+        draw_branch(top);
+    }
+}
+
+Node* push_val(Node* top, string val){
+    Node* new_top = new Node(top, val);
+    return new_top;
+}
+
+Node* pop_val(Node* top){
+    Node* new_top = top -> parent;
+    free(top);
+    return new_top;
+}
+
+Node* do_shift(Node* top, string action, char cur_token){
+    string new_val;
+    new_val.push_back(cur_token);
+    new_val.push_back(action[1]);
+    top = push_val(top, new_val);
+    return top;
+}
+
+pair<bool, Node*> do_reduce(Node* top, vector<string>& grammar, string action, char cur_token,
+vector<unordered_map<char, string>>& control_table){
+    string needed_rule = grammar[action[1] - '0'];
+    int num_elems_to_pop = needed_rule.length() - 2;
+    for (int i = 0; i < num_elems_to_pop; i++){
+        top = pop_val(top);
+    }
+    string top_elem = top->val;
+    int cur_state = top_elem[top_elem.length() - 1] - '0';
+    action = control_table[cur_state][needed_rule[0]];
+    if (action.size() == 0 || action == "acc"){
+        if (is_word_correct(action, cur_token)){
+            return {true, nullptr};
+        }else{
+            return {false, nullptr};
         }
-        string action = control_table[cur_state][cur_token];
+    }
+    string new_val;
+    new_val.push_back(needed_rule[0]);
+    new_val.push_back(action[0]);
+    top = push_val(top, new_val);
+    return {false, top};
+}
+
+pair<bool, Node*> make_new_reduce_branch(Node* top, vector<string>& grammar, string action, char cur_token,
+vector<unordered_map<char, string>>& control_table){
+    string needed_rule = grammar[action[1] - '0'];
+    int num_elems_to_pop = needed_rule.length() - 2;
+    Node* top_copy = top;
+    for (int i = 0; i < num_elems_to_pop; i++){
+        top_copy = top_copy -> parent;
+    }
+    string top_elem = top_copy->val;
+    int cur_state = top_elem[top_elem.length() - 1] - '0';
+    action = control_table[cur_state][needed_rule[0]];
+    if (action.size() == 0 || action == "acc"){
+        if (is_word_correct(action, cur_token)){
+            return {true, nullptr};
+        }else{
+            return {false, nullptr};
+        }
+    }
+    string new_val;
+    new_val.push_back(needed_rule[0]);
+    new_val.push_back(action[0]);
+    top_copy = push_val(top_copy, new_val);
+    return {false, top_copy};
+}
+
+bool tree_lr0_parsing (Node* top, int position, vector<string>& grammar, vector<unordered_map<char, string>>& control_table,
+ stack<char> word_stack, vector<char>& terms){
+    while (true){
+        string top_elem = top->val;
+        char cur_token = word_stack.top();
         if (find(terms.begin(), terms.end(), cur_token) == terms.end()){
             cout << "недопустимый токен " << cur_token << " в позиции слова " << position << endl;
             cout << " это первая ошибка в разборе " << endl;
             return false;
         }
-        if (action.size() == 0 || action == "acc"){
-            return is_word_correct(action , cur_token);
-        }
-        string new_top_elem;
-        if (action[0] == 's'){
-            new_top_elem.push_back(cur_token);
-            new_top_elem.push_back(action[1]);
-            word_stack.pop();
-            position++;
-        }else if (action[0] == 'r'){
-            string needed_rule = grammar[action[1] - '0'];
-            int num_elems_to_pop = needed_rule.length() - 2;
-            for (int i = 0; i < num_elems_to_pop; i++){
-                parse_stack.pop();
-            }
-            top_elem = parse_stack.top();
-            cur_state = top_elem[top_elem.length() - 1] - '0';
-            action = control_table[cur_state][needed_rule[0]];
+        int cur_state = top_elem[top_elem.length() - 1] - '0';
+        Conflict_States conflict_states;
+        if (check_state_on_conflicts(control_table[cur_state], cur_token) == conflict_states.no_conflicts){
+            string action = control_table[cur_state][cur_token];
             if (action.size() == 0 || action == "acc"){
-                return is_word_correct(action, cur_token);
+                if (is_word_correct(action, cur_token)){
+                    return true;
+                }else{
+                    return false;
+                }
+            }else if (action[0] == 's'){
+                top = do_shift(top, action, cur_token);
+                word_stack.pop();
+                position++;
+            }else if (action[0] == 'r'){
+                pair<bool, Node*> res =  do_reduce(top, grammar, action, cur_token, control_table);
+                if (res.second == nullptr){
+                    if (res.first == true){
+                        return true;
+                    }else{
+                        return false;
+                    }
+                }else{
+                    top = res.second;
+                }
             }
-            new_top_elem.push_back(needed_rule[0]);
-            new_top_elem.push_back(action[0]);
+        }else if (check_state_on_conflicts(control_table[cur_state], cur_token) == conflict_states.shift_reduce){
+            string action = control_table[cur_state][cur_token];
+            Node* new_branch;
+            for (int i = 0; i < action.size(); i+= 2){
+                if (action[i] == 'r'){
+                    pair<bool, Node*> res =  make_new_reduce_branch(top, grammar, action.substr(i, 2), cur_token, control_table);
+                    Node* new_branch;
+                    if (res.second == nullptr){
+                        if (res.first == true){
+                            return true;
+                        }
+                    }else{
+                        new_branch = res.second;
+                    }
+                    tree_lr0_parsing(new_branch, position, grammar, control_table, word_stack, terms);
+                }
+            }
+            for (int i = 0; i < action.size(); i += 2){
+                if (action[i] == 's'){
+                    top = do_shift(top, action.substr(i, 2), cur_token);
+                    word_stack.pop();
+                    position++;
+                }
+            }
+        }else if (check_state_on_conflicts(control_table[cur_state], cur_token) == conflict_states.reduce_reduce){
+            string action = control_table[cur_state][cur_token];
+            for (int i = 0; i < action.size(); i+= 2){
+                if (action[i] == 'r'){
+                    pair<bool, Node*> res = make_new_reduce_branch(top, grammar, action.substr(i, 2), cur_token, control_table);
+                    Node* new_branch;
+                    if (res.second == nullptr){
+                        if (res.first == true){
+                            return true;
+                        }
+                    }else{
+                        new_branch = res.second;
+                    }
+                    tree_lr0_parsing(new_branch, position, grammar, control_table, word_stack, terms);
+                }
+            }
         }
-        parse_stack.push(new_top_elem);
     }
 }
 
@@ -413,10 +508,11 @@ int main(){
     states, transitions, terms, nonterms);
     cout << "\ncontrol table : " << endl;
     print_control_table(control_table, terms, nonterms);
-    if (lr0_parsing(grammar, control_table, word_stack, terms)){
-        cout << "слово успешно разобрано ! " << endl;
+    Node* top = new Node("0");
+    if (tree_lr0_parsing(top, 0, grammar, control_table, word_stack, terms)){
+        cout << " разбор завершен успешно ! " << endl;
     }else{
-        cout << "слово не разбирается с помощью данной грамматики " << endl;
+        cout << " разбор неуспешен, ни одна из ветвей не пришла к концу !" << endl;
     }
     return 0;
 }
