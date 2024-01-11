@@ -234,6 +234,33 @@ vector<unordered_map<char, string>> create_control_table (vector<string>& gramma
         return control_table;
 }
 
+bool check_state_on_conflicts(unordered_map<char, string>& state, char cur_token){
+    string actions = state[cur_token];
+    int num_reduces = 0;
+    int num_shifts = 0;
+    for (int i = 0; i < actions.length(); i+=2){
+        if (actions[i] == 's'){
+            num_shifts++;
+        }
+        if (actions[i] == 'r'){
+            num_reduces++;
+        }
+    }
+    bool flag = true;
+    if (num_shifts != 0 && num_reduces != 0){
+        cout << " есть конфликт сдвиг свертка " << endl;
+        flag = false;
+    }
+    if (num_reduces > 1){
+        cout << " есть конфликт свертка свертка " << endl;
+        flag = false;
+    }
+    if (!flag){
+        return false;
+    }
+    return true;
+}
+
 bool check_control_table_on_conflicts(
     vector<unordered_map<char, string>>& control_table, vector<char>& terms){
     for (int i = 0; i < control_table.size(); i++){
@@ -251,11 +278,11 @@ bool check_control_table_on_conflicts(
             }
             bool flag = true;
             if (num_shifts != 0 && num_reduces != 0){
-                cout << " есть конфликт сдвиг свертка " << endl;
+                cout << " есть конфликт сдвиг свертка ";
                 flag = false;
             }
             if (num_reduces > 1){
-                cout << " есть конфликт свертка свертка " << endl;
+                cout << " есть конфликт свертка свертка ";
                 flag = false;
             }
             if (!flag){
@@ -307,14 +334,20 @@ bool lr0_parsing (vector<string>& grammar, vector<unordered_map<char, string>>& 
  stack<char> word_stack, vector<char>& terms){
     stack<string> parse_stack;
     parse_stack.push(to_string(0));
-    int count = 0;
+    int position = 0;
     while (true){
         string top_elem = parse_stack.top();
         char cur_token = word_stack.top();
         int cur_state = top_elem[top_elem.length() - 1] - '0';
+        if (!check_state_on_conflicts(control_table[cur_state], cur_token)){
+            cout << " в позиции слова " << position << endl;
+            cout << " это первая ошибка в разборе " << endl;
+            return false;
+        }
         string action = control_table[cur_state][cur_token];
         if (find(terms.begin(), terms.end(), cur_token) == terms.end()){
-            cout << "недопустимый токен " << cur_token << endl;
+            cout << "недопустимый токен " << cur_token << " в позиции слова " << position << endl;
+            cout << " это первая ошибка в разборе " << endl;
             return false;
         }
         if (action.size() == 0 || action == "acc"){
@@ -325,6 +358,7 @@ bool lr0_parsing (vector<string>& grammar, vector<unordered_map<char, string>>& 
             new_top_elem.push_back(cur_token);
             new_top_elem.push_back(action[1]);
             word_stack.pop();
+            position++;
         }else if (action[0] == 'r'){
             string needed_rule = grammar[action[1] - '0'];
             int num_elems_to_pop = needed_rule.length() - 2;
@@ -341,7 +375,6 @@ bool lr0_parsing (vector<string>& grammar, vector<unordered_map<char, string>>& 
             new_top_elem.push_back(action[0]);
         }
         parse_stack.push(new_top_elem);
-        count++;
     }
 }
 
@@ -380,13 +413,8 @@ int main(){
     states, transitions, terms, nonterms);
     cout << "\ncontrol table : " << endl;
     print_control_table(control_table, terms, nonterms);
-    if (check_control_table_on_conflicts(control_table, terms)){
-        cout << "конфликтов нет " << endl;
-        if (lr0_parsing(grammar, control_table, word_stack, terms)){
-            cout << "слово успешно разобрано ! " << endl;
-        }else{
-            cout << "слово не разбирается с помощью данной грамматики " << endl;
-        }
+    if (lr0_parsing(grammar, control_table, word_stack, terms)){
+        cout << "слово успешно разобрано ! " << endl;
     }else{
         cout << "слово не разбирается с помощью данной грамматики " << endl;
     }
