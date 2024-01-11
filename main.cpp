@@ -351,7 +351,13 @@ bool lr0_parsing (vector<string>& grammar, vector<unordered_map<char, string>>& 
             return false;
         }
         if (action.size() == 0 || action == "acc"){
-            return is_word_correct(action , cur_token);
+            if(is_word_correct(action , cur_token)){
+                return true;
+            }else{
+                cout << " слово не может быть разобрано по правилам грамматики " << endl;
+                cout << " позиция слова в которой произошло несовпадение " << position << endl;
+                return false;
+            }
         }
         string new_top_elem;
         if (action[0] == 's'){
@@ -369,7 +375,13 @@ bool lr0_parsing (vector<string>& grammar, vector<unordered_map<char, string>>& 
             cur_state = top_elem[top_elem.length() - 1] - '0';
             action = control_table[cur_state][needed_rule[0]];
             if (action.size() == 0 || action == "acc"){
-                return is_word_correct(action, cur_token);
+                if(is_word_correct(action , cur_token)){
+                    return true;
+                }else{
+                    cout << " слово не может быть разобрано по правилам грамматики " << endl;
+                    cout << " позиция слова в которой произошло несовпадение " << position << endl;
+                    return false;
+                }
             }
             new_top_elem.push_back(needed_rule[0]);
             new_top_elem.push_back(action[0]);
