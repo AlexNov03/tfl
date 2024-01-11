@@ -443,7 +443,9 @@ bool tree_lr0_parsing (Node* top, int position, vector<string>& grammar, vector<
                     }else{
                         new_branch = res.second;
                     }
-                    tree_lr0_parsing(new_branch, position, grammar, control_table, word_stack, terms);
+                    if (tree_lr0_parsing(new_branch, position, grammar, control_table, word_stack, terms)){
+                        return true;
+                    };
                 }
             }
             for (int i = 0; i < action.size(); i += 2){
@@ -466,7 +468,9 @@ bool tree_lr0_parsing (Node* top, int position, vector<string>& grammar, vector<
                     }else{
                         new_branch = res.second;
                     }
-                    tree_lr0_parsing(new_branch, position, grammar, control_table, word_stack, terms);
+                    if (tree_lr0_parsing(new_branch, position, grammar, control_table, word_stack, terms)){
+                        return true;
+                    };
                 }
             }
         }
